@@ -42,15 +42,21 @@ app.post("/upload", upload.single("resume"), async (req, res) => {
     // 🔹 Call Gemini API
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      { contents: [{ parts: [{ text: `Analyze this resume for ATS compatibility and give a score out of 100. Also, suggest improvements:\n\n${resumeText}` }] }] },
+      { contents: [{ parts: [{ text: `Analyze this resume for ATS compatibility. Provide a score out of 100 and suggest improvements. Format response as: \"Score: [number]\" followed by feedback.
+\n${resumeText}` }] }] },
       { headers: { "Content-Type": "application/json" } }
     );
 
     const analysis = response?.data?.candidates?.[0]?.content?.parts?.[0]?.text || "No feedback received from AI";
     console.log("🔹 AI Response:", analysis);
 
-    // 🔹 Generate ATS Score
-    const score = Math.floor(Math.random() * (100 - 60 + 1)) + 60;
+    // 🔹 Extract ATS Score from AI Response
+    const scoreMatch = analysis.match(/Score:\s*(\d+)/);
+    const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+
+    if (score === null) {
+      return res.status(500).json({ error: "Failed to extract score from AI response" });
+    }
 
     // 🔹 Save Analysis to MongoDB
     const newResume = new Resume({ resumeText, atsScore: score, feedback: analysis });
